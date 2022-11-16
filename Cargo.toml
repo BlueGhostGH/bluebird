@@ -5,6 +5,12 @@ edition = "2021"
 
 [dependencies]
 axum = { git = "https://github.com/tokio-rs/axum" }
+sqlx = { version = "0.6", features = [
+    "macros",
+    "migrate",
+    "postgres",
+    "runtime-tokio-rustls",
+] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["std"] }
