@@ -111,6 +111,7 @@ name = "bluebird"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "hyper",
  "sqlx",
  "tokio",
  "tracing",

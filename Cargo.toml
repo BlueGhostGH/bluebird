@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 axum = { git = "https://github.com/tokio-rs/axum" }
+hyper = "0.14"
 sqlx = { version = "0.6", features = [
     "macros",
     "migrate",
