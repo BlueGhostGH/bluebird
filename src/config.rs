@@ -1,6 +1,6 @@
 use std::env;
 
-pub use self::error::{Error, Result};
+pub use error::{Error, Result};
 
 const FALLBACK_DATABASE_URL: &'static str = "postgres://postgres:postgres@localhost/bluebird";
 const FALLBACK_PORT: u16 = 3000;

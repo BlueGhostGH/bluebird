@@ -1,17 +1,10 @@
-pub mod config;
-mod error;
+use std::time::Duration;
 
-mod root;
-
-use std::{net::SocketAddr, time::Duration};
-
-use axum::{routing::get, Router, Server};
 use sqlx::postgres::PgPoolOptions;
 
-use config::Config;
-use error::Result;
+use bluebird::config::Config;
 
-use root::root;
+use error::Result;
 
 #[tokio::main]
 async fn main() -> Result<()>
@@ -26,12 +19,96 @@ async fn main() -> Result<()>
         .connect(config.database_url())
         .await?;
 
-    let app = Router::with_state(pool).route("/", get(root));
+    sqlx::migrate!().run(&pool).await?;
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], config.port()));
-    tracing::debug!("listening on {}", addr);
-
-    Server::bind(&addr).serve(app.into_make_service()).await?;
+    bluebird::http::serve(config.port(), pool).await?;
 
     Ok(())
+}
+
+mod error
+{
+    use std::{error, fmt, result};
+
+    use bluebird::{config, http};
+
+    pub type Result<T> = result::Result<T, Error>;
+
+    #[derive(Debug)]
+    pub enum Error
+    {
+        Config(config::Error),
+        Sqlx(sqlx::Error),
+        Migrate(sqlx::migrate::MigrateError),
+        Hyper(hyper::Error),
+        Http(http::Error),
+    }
+
+    impl fmt::Display for Error
+    {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+        {
+            match self {
+                Error::Config(config_err) => write!(f, "{config_err}"),
+                Error::Sqlx(sqlx_err) => write!(f, "{sqlx_err}"),
+                Error::Migrate(migrate_err) => write!(f, "{migrate_err}"),
+                Error::Hyper(hyper_err) => write!(f, "{hyper_err}"),
+                Error::Http(http_err) => write!(f, "{http_err}"),
+            }
+        }
+    }
+
+    impl error::Error for Error
+    {
+        fn source(&self) -> Option<&(dyn error::Error + 'static)>
+        {
+            match self {
+                Error::Config(config_err) => Some(config_err),
+                Error::Sqlx(sqlx_err) => Some(sqlx_err),
+                Error::Migrate(migrate_err) => Some(migrate_err),
+                Error::Hyper(hyper_err) => Some(hyper_err),
+                Error::Http(http_err) => Some(http_err),
+            }
+        }
+    }
+
+    impl From<config::Error> for Error
+    {
+        fn from(config_err: config::Error) -> Self
+        {
+            Error::Config(config_err)
+        }
+    }
+
+    impl From<sqlx::Error> for Error
+    {
+        fn from(sqlx_err: sqlx::Error) -> Self
+        {
+            Error::Sqlx(sqlx_err)
+        }
+    }
+
+    impl From<sqlx::migrate::MigrateError> for Error
+    {
+        fn from(migrate_err: sqlx::migrate::MigrateError) -> Self
+        {
+            Error::Migrate(migrate_err)
+        }
+    }
+
+    impl From<hyper::Error> for Error
+    {
+        fn from(hyper_err: hyper::Error) -> Self
+        {
+            Error::Hyper(hyper_err)
+        }
+    }
+
+    impl From<http::Error> for Error
+    {
+        fn from(http_err: http::Error) -> Self
+        {
+            Error::Http(http_err)
+        }
+    }
 }
