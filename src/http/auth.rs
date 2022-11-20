@@ -9,13 +9,13 @@ use crate::{
     password,
 };
 
-pub fn router() -> Router
+pub(crate) fn router() -> Router
 {
     Router::new().route("/auth", get(fetch_auth_session).post(create_auth_session))
 }
 
 #[derive(Deserialize)]
-pub struct CreateAuthSession
+pub(crate) struct CreateAuthSession
 {
     username: String,
     password: String,
@@ -69,7 +69,7 @@ async fn create_auth_session(
                 // formatted string will be ASCII-only, so creating the
                 // HeaderValue will never fail
                 .unwrap();
-                headers.insert(http::header::SET_COOKIE, header_value);
+                let _prev_value = headers.insert(http::header::SET_COOKIE, header_value);
 
                 Ok((headers, http::StatusCode::NO_CONTENT))
             } else {
@@ -83,7 +83,7 @@ async fn create_auth_session(
 type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
-pub enum Error
+pub(crate) enum Error
 {
     #[error("{0}")]
     Sqlx(#[from] sqlx::Error),

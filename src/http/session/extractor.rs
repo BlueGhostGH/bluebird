@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::http::session;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum UserId
 {
     Found(Uuid),

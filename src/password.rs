@@ -7,7 +7,7 @@ use argon2::{
 };
 use thiserror::Error;
 
-pub async fn hash(password: String) -> Result<String>
+pub(crate) async fn hash(password: String) -> Result<String>
 {
     let password = task::spawn_blocking(move || {
         let salt = SaltString::generate(rand::thread_rng());
@@ -21,7 +21,7 @@ pub async fn hash(password: String) -> Result<String>
     password
 }
 
-pub async fn verify(password: String, hash: String) -> Result<bool>
+pub(crate) async fn verify(password: String, hash: String) -> Result<bool>
 {
     task::spawn_blocking(move || {
         let hash = PasswordHash::new(&hash).map_err(Error::from)?;
@@ -39,7 +39,8 @@ pub async fn verify(password: String, hash: String) -> Result<bool>
 type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
-pub enum Error
+#[allow(variant_size_differences)]
+pub(crate) enum Error
 {
     #[error("{0}")]
     PasswordHash(#[from] password_hash::Error),

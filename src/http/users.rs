@@ -6,14 +6,14 @@ use thiserror::Error;
 
 use crate::password;
 
-pub fn router() -> Router
+pub(crate) fn router() -> Router
 {
     Router::new().route("/users", post(create_user))
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateUser
+pub(crate) struct CreateUser
 {
     username: String,
     password: String,
@@ -28,7 +28,7 @@ async fn create_user(
 
     let password = password::hash(password).await?;
 
-    sqlx::query!(
+    let _pg_query_res = sqlx::query!(
         r#"
             INSERT INTO "users"(username, password)
             values ($1, $2)
@@ -51,7 +51,7 @@ async fn create_user(
 type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
-pub enum Error
+pub(crate) enum Error
 {
     #[error("{0}")]
     Sqlx(#[from] sqlx::Error),

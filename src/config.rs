@@ -2,7 +2,7 @@ use std::{env, num};
 
 use thiserror::Error;
 
-const FALLBACK_DATABASE_URL: &'static str = "postgres://postgres:postgres@localhost/bluebird";
+const FALLBACK_DATABASE_URL: &str = "postgres://postgres:postgres@localhost/bluebird";
 const FALLBACK_PORT: u16 = 3000;
 
 #[derive(Debug)]

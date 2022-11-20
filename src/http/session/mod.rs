@@ -85,7 +85,7 @@ impl Session
     {
         let mut data = self.data.write().await;
         if data.get(key) != Some(&value) {
-            data.insert(String::from(key), value);
+            let _prev_val = data.insert(String::from(key), value);
             self.data_changed.store(true, Ordering::Relaxed);
         }
     }
@@ -174,7 +174,8 @@ impl Store
 
     pub async fn store_session(&self, session: Session) -> Result<Option<String>>
     {
-        self.inner
+        let _prev_val = self
+            .inner
             .write()
             .await
             .insert(session.id.clone(), session.clone());
