@@ -2,19 +2,21 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, RwLock,
     },
+    time::Duration,
 };
 
 use axum::{http, response};
 
-use async_lock::RwLock;
 use rand::RngCore;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use time::{Duration, OffsetDateTime};
 
 pub mod extractor;
+mod store;
+
+pub use store::Store;
 
 pub const SESSION_COOKIE_NAME: &str = "bluebird_session";
 
@@ -25,14 +27,16 @@ pub fn generate_cookie(len: usize) -> String
     base64::encode(key)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Session
 {
     id: String,
-    expiry: Option<OffsetDateTime>,
+    expires_in: Option<Duration>,
     data: Arc<RwLock<HashMap<String, String>>>,
 
+    #[serde(skip)]
     cookie_value: Option<String>,
+    #[serde(skip)]
     data_changed: Arc<AtomicBool>,
 }
 
@@ -48,7 +52,7 @@ impl Session
 
         Session {
             id,
-            expiry: None,
+            expires_in: None,
             data: Arc::new(RwLock::new(HashMap::default())),
 
             cookie_value: Some(cookie),
@@ -68,7 +72,8 @@ impl Session
     where
         T: serde::de::DeserializeOwned,
     {
-        let data = self.data.read().await;
+        // TODO: Figure out how ok it is to unwrap here
+        let data = self.data.read().unwrap();
         let string = data.get(key)?;
         serde_json::from_str(string).ok()
     }
@@ -83,34 +88,11 @@ impl Session
 
     async fn insert_raw(&mut self, key: &str, value: String)
     {
-        let mut data = self.data.write().await;
+        // TODO: Same as line 75
+        let mut data = self.data.write().unwrap();
         if data.get(key) != Some(&value) {
             let _prev_val = data.insert(String::from(key), value);
             self.data_changed.store(true, Ordering::Relaxed);
-        }
-    }
-
-    pub fn is_expired(&self) -> bool
-    {
-        match self.expiry {
-            Some(expiry) => expiry < OffsetDateTime::now_utc(),
-            None => false,
-        }
-    }
-
-    pub fn validate(self) -> Result<Self>
-    {
-        match self.is_expired() {
-            false => Ok(self),
-            true => {
-                // SAFETY: The only way `self.is_expired` could return true
-                // is if, above everything else, the `self.expiry` field is of
-                // the `Some `variant, therefore it is also guaranteed to be
-                // `Some` here
-                let by = self.expiry.unwrap() - OffsetDateTime::now_utc();
-
-                Err(Error::SessionExpired { by })
-            }
         }
     }
 
@@ -131,57 +113,12 @@ impl Clone for Session
     {
         Session {
             id: self.id.clone(),
-            expiry: self.expiry,
+            expires_in: self.expires_in,
             data: self.data.clone(),
 
             cookie_value: None,
             data_changed: self.data_changed.clone(),
         }
-    }
-}
-
-// TODO: move to a Redis-based store
-#[derive(Debug, Clone)]
-pub struct Store
-{
-    inner: Arc<RwLock<HashMap<String, Session>>>,
-}
-
-impl Store
-{
-    pub fn new() -> Self
-    {
-        Store {
-            inner: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
-    pub async fn load_session(&self, cookie: &str) -> Result<Session>
-    {
-        let id = Session::id_from_cookie(cookie)?;
-        let store = self.inner.read().await;
-        let session = store
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| {
-                let cookie = String::from(cookie);
-                Error::NoSessionFound { cookie }
-            })
-            .and_then(Session::validate);
-
-        session
-    }
-
-    pub async fn store_session(&self, session: Session) -> Result<Option<String>>
-    {
-        let _prev_val = self
-            .inner
-            .write()
-            .await
-            .insert(session.id.clone(), session.clone());
-
-        session.reset_data_changed();
-        Ok(session.into_cookie_value())
     }
 }
 
@@ -194,13 +131,10 @@ pub enum Error
     Base64Decode(#[from] base64::DecodeError),
     #[error("{0}")]
     SerdeJson(#[from] serde_json::Error),
+    #[error("{0}")]
+    Redis(#[from] redis::RedisError),
     #[error("missing request session store extension")]
     MissingStoreExtension,
-    #[error("session has been expired for {by}")]
-    SessionExpired
-    {
-        by: Duration
-    },
     #[error("no session found for cookie {cookie}")]
     NoSessionFound
     {
@@ -215,8 +149,8 @@ impl response::IntoResponse for Error
         match self {
             Error::Base64Decode(_)
             | Error::SerdeJson(_)
-            | Error::MissingStoreExtension
-            | Error::SessionExpired { .. } => {
+            | Error::Redis(_)
+            | Error::MissingStoreExtension => {
                 http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
             Error::NoSessionFound { .. } => http::StatusCode::BAD_REQUEST.into_response(),

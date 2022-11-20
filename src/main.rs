@@ -22,7 +22,8 @@ async fn main() -> Result<()>
         .await?;
     sqlx::migrate!().run(&pg_pool).await?;
 
-    let session_store = session::Store::new();
+    let redis_client = redis::Client::open("redis://127.0.0.1/")?;
+    let session_store = session::Store::new(redis_client);
 
     bluebird::http::serve(config.port(), pg_pool, session_store).await?;
 
@@ -40,6 +41,8 @@ pub enum Error
     Sqlx(#[from] sqlx::Error),
     #[error("{0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+    #[error("{0}")]
+    Redis(#[from] redis::RedisError),
     #[error("{0}")]
     Hyper(#[from] hyper::Error),
     #[error("{0}")]

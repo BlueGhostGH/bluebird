@@ -1,4 +1,4 @@
-#![feature(must_not_suspend)]
+#![feature(must_not_suspend, result_flattening)]
 #![deny(unsafe_code)]
 #![warn(
     clippy::all,
