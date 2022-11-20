@@ -9,7 +9,7 @@ pub mod session;
 mod auth;
 mod users;
 
-pub fn app(pg_pool: PgPool, session_store: session::Store) -> Router
+fn app(pg_pool: PgPool, session_store: session::Store) -> Router
 {
     Router::new()
         .merge(auth::router())

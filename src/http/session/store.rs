@@ -23,7 +23,7 @@ impl Store
             .map_err(session::Error::from)
     }
 
-    pub async fn load_session(&self, cookie: &str) -> session::Result<session::Session>
+    pub(super) async fn load_session(&self, cookie: &str) -> session::Result<session::Session>
     {
         let id = session::Session::id_from_cookie(cookie)?;
         let mut connection = self.connection().await?;
@@ -45,8 +45,10 @@ impl Store
         Ok(session)
     }
 
-    pub async fn store_session(&self, session: session::Session)
-        -> session::Result<Option<String>>
+    pub(in crate::http) async fn store_session(
+        &self,
+        session: session::Session,
+    ) -> session::Result<Option<String>>
     {
         let record = serde_json::to_string(&session)?;
         let mut connection = self.connection().await?;

@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{http::session, password};
 
-pub(crate) fn router() -> Router
+pub(in crate::http) fn router() -> Router
 {
     Router::new().route("/auth", get(fetch_auth_session).post(create_auth_session))
 }
@@ -20,7 +20,7 @@ async fn fetch_auth_session(user_id: session::extractor::UserId) -> Result<Strin
 }
 
 #[derive(Deserialize)]
-pub(crate) struct CreateAuthSession
+struct CreateAuthSession
 {
     username: String,
     password: String,
@@ -80,7 +80,7 @@ async fn create_auth_session(
 type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
-pub(crate) enum Error
+enum Error
 {
     #[error("{0}")]
     Sqlx(#[from] sqlx::Error),

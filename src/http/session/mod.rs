@@ -13,7 +13,7 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub mod extractor;
+pub(in crate::http) mod extractor;
 mod store;
 
 pub use store::Store;

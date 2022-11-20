@@ -33,7 +33,7 @@ async fn main() -> Result<()>
 type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
-pub enum Error
+enum Error
 {
     #[error("{0}")]
     Config(#[from] config::Error),

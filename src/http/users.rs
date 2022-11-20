@@ -6,14 +6,14 @@ use thiserror::Error;
 
 use crate::password;
 
-pub(crate) fn router() -> Router
+pub(in crate::http) fn router() -> Router
 {
     Router::new().route("/users", post(create_user))
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct CreateUser
+struct CreateUser
 {
     username: String,
     password: String,
@@ -51,7 +51,7 @@ async fn create_user(
 type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
-pub(crate) enum Error
+enum Error
 {
     #[error("{0}")]
     Sqlx(#[from] sqlx::Error),
