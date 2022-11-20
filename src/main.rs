@@ -15,16 +15,16 @@ async fn main() -> Result<()>
 
     let config = Config::init()?;
 
-    let pool = PgPoolOptions::new()
+    let pg_pool = PgPoolOptions::new()
         .max_connections(5)
         .acquire_timeout(Duration::from_secs(3))
-        .connect(config.database_url())
+        .connect(config.postgres_url())
         .await?;
-    sqlx::migrate!().run(&pool).await?;
+    sqlx::migrate!().run(&pg_pool).await?;
 
     let session_store = session::Store::new();
 
-    bluebird::http::serve(config.port(), pool, session_store).await?;
+    bluebird::http::serve(config.port(), pg_pool, session_store).await?;
 
     Ok(())
 }

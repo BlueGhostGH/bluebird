@@ -2,13 +2,13 @@ use std::{env, num};
 
 use thiserror::Error;
 
-const FALLBACK_DATABASE_URL: &str = "postgres://postgres:postgres@localhost/bluebird";
+const FALLBACK_POSTGRES_URL: &str = "postgres://postgres:postgres@localhost/bluebird";
 const FALLBACK_PORT: u16 = 3000;
 
 #[derive(Debug)]
 pub struct Config
 {
-    database_url: String,
+    postgres_url: String,
     port: u16,
 }
 
@@ -16,9 +16,9 @@ impl Config
 {
     pub fn init() -> Result<Self>
     {
-        let database_url = match env::var("DATABASE_URL") {
+        let postgres_url = match env::var("POSTGRES_URL") {
             Ok(url) => url,
-            Err(env::VarError::NotPresent) => String::from(FALLBACK_DATABASE_URL),
+            Err(env::VarError::NotPresent) => String::from(FALLBACK_POSTGRES_URL),
             err => err?,
         };
 
@@ -28,12 +28,12 @@ impl Config
             Err(err) => Err(err)?,
         };
 
-        Ok(Config { database_url, port })
+        Ok(Config { postgres_url, port })
     }
 
-    pub fn database_url(&self) -> &str
+    pub fn postgres_url(&self) -> &str
     {
-        &self.database_url
+        &self.postgres_url
     }
 
     pub fn port(&self) -> u16

@@ -9,21 +9,21 @@ pub mod session;
 mod auth;
 mod users;
 
-pub fn app(db_pool: PgPool, session_store: session::Store) -> Router
+pub fn app(pg_pool: PgPool, session_store: session::Store) -> Router
 {
     Router::new()
         .merge(auth::router())
         .merge(users::router())
-        .layer(Extension(db_pool))
+        .layer(Extension(pg_pool))
         .layer(Extension(session_store))
 }
 
-pub async fn serve(port: u16, db_pool: PgPool, session_store: session::Store) -> Result<()>
+pub async fn serve(port: u16, pg_pool: PgPool, session_store: session::Store) -> Result<()>
 {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
     axum::Server::bind(&addr)
-        .serve(app(db_pool, session_store).into_make_service())
+        .serve(app(pg_pool, session_store).into_make_service())
         .await?;
 
     Ok(())

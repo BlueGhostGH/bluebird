@@ -20,7 +20,7 @@ pub(crate) struct CreateUser
 }
 
 async fn create_user(
-    db_pool: Extension<PgPool>,
+    pg_pool: Extension<PgPool>,
     Json(req): Json<CreateUser>,
 ) -> Result<http::StatusCode>
 {
@@ -36,7 +36,7 @@ async fn create_user(
         username,
         password
     )
-    .execute(&*db_pool)
+    .execute(&*pg_pool)
     .await
     .map_err(|err| match err {
         sqlx::Error::Database(db_err) if db_err.constraint() == Some("users_username_key") => {

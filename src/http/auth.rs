@@ -4,21 +4,11 @@ use sqlx::PgPool;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{
-    http::session::{self, Session},
-    password,
-};
+use crate::{http::session, password};
 
 pub(crate) fn router() -> Router
 {
     Router::new().route("/auth", get(fetch_auth_session).post(create_auth_session))
-}
-
-#[derive(Deserialize)]
-pub(crate) struct CreateAuthSession
-{
-    username: String,
-    password: String,
 }
 
 async fn fetch_auth_session(user_id: session::extractor::UserId) -> Result<String>
@@ -29,8 +19,15 @@ async fn fetch_auth_session(user_id: session::extractor::UserId) -> Result<Strin
     }
 }
 
+#[derive(Deserialize)]
+pub(crate) struct CreateAuthSession
+{
+    username: String,
+    password: String,
+}
+
 async fn create_auth_session(
-    db_pool: Extension<PgPool>,
+    pg_pool: Extension<PgPool>,
     session_store: Extension<session::Store>,
     Json(req): Json<CreateAuthSession>,
 ) -> Result<(http::HeaderMap, http::StatusCode)>
@@ -41,7 +38,7 @@ async fn create_auth_session(
         r#"select user_id, password from users where username = $1"#,
         username
     )
-    .fetch_optional(&*db_pool)
+    .fetch_optional(&*pg_pool)
     .await?;
 
     match user {
@@ -49,7 +46,7 @@ async fn create_auth_session(
             let password_is_correct = password::verify(password, user.password).await?;
 
             if password_is_correct {
-                let mut session = Session::new();
+                let mut session = session::Session::new();
                 session.insert("user_id", user.user_id).await?;
                 // SAFETY: This cannot fail as store_session propagates `None`
                 // upon a `None` field for the session's cookie value, which
