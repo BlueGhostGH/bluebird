@@ -1,6 +1,9 @@
 use tokio::task;
 
-use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
+use argon2::{
+    password_hash::{self, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 
 pub use error::{Error, Result};
 
@@ -9,14 +12,28 @@ pub async fn hash(password: String) -> Result<String>
     let password = task::spawn_blocking(move || {
         let salt = SaltString::generate(rand::thread_rng());
 
-        Argon2::default()
-            .hash_password(password.as_bytes(), &salt)
-            .map(|pw| pw.to_string())
-            .map_err(error::Error::from)
+        let hashed_password = Argon2::default().hash_password(password.as_bytes(), &salt)?;
+
+        Ok(hashed_password.to_string())
     })
     .await?;
 
     password
+}
+
+pub async fn verify(password: String, hash: String) -> Result<bool>
+{
+    task::spawn_blocking(move || {
+        let hash = PasswordHash::new(&hash).map_err(error::Error::from)?;
+        let is_correct = Argon2::default().verify_password(password.as_bytes(), &hash);
+
+        match is_correct {
+            Ok(()) => Ok(true),
+            Err(password_hash::Error::Password) => Ok(false),
+            Err(err) => Err(err)?,
+        }
+    })
+    .await?
 }
 
 mod error
