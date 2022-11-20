@@ -2,21 +2,28 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, RwLock,
+        Arc,
     },
 };
 
 use axum::{http, response};
 
+use async_lock::RwLock;
 use rand::RngCore;
 use serde::Serialize;
 use thiserror::Error;
 use time::{Duration, OffsetDateTime};
 
 pub mod extractor;
-pub mod store;
 
 pub const SESSION_COOKIE_NAME: &str = "bluebird_session";
+
+pub fn generate_cookie(len: usize) -> String
+{
+    let mut key = vec![0u8; len];
+    rand::thread_rng().fill_bytes(&mut key);
+    base64::encode(key)
+}
 
 #[derive(Debug)]
 pub struct Session
@@ -27,13 +34,6 @@ pub struct Session
 
     cookie_value: Option<String>,
     data_changed: Arc<AtomicBool>,
-}
-
-pub fn generate_cookie(len: usize) -> String
-{
-    let mut key = vec![0u8; len];
-    rand::thread_rng().fill_bytes(&mut key);
-    base64::encode(key)
 }
 
 impl Session
@@ -56,7 +56,7 @@ impl Session
         }
     }
 
-    pub fn id_from_cookie(cookie: &str) -> Result<String, Error>
+    pub fn id_from_cookie(cookie: &str) -> Result<String>
     {
         let decoded = base64::decode(cookie)?;
         let hash = blake3::hash(&decoded);
@@ -64,26 +64,26 @@ impl Session
         Ok(base64::encode(hash.as_bytes()))
     }
 
-    pub fn get<T>(&self, key: &str) -> Option<T>
+    pub async fn get<T>(&self, key: &str) -> Option<T>
     where
         T: serde::de::DeserializeOwned,
     {
-        let data = self.data.read().unwrap();
+        let data = self.data.read().await;
         let string = data.get(key)?;
         serde_json::from_str(string).ok()
     }
 
-    pub fn insert<V>(&mut self, key: &str, value: V) -> Result<(), Error>
+    pub async fn insert<V>(&mut self, key: &str, value: V) -> Result<()>
     where
         V: Serialize,
     {
-        self.insert_raw(key, serde_json::to_string(&value)?);
+        self.insert_raw(key, serde_json::to_string(&value)?).await;
         Ok(())
     }
 
-    fn insert_raw(&mut self, key: &str, value: String)
+    async fn insert_raw(&mut self, key: &str, value: String)
     {
-        let mut data = self.data.write().unwrap();
+        let mut data = self.data.write().await;
         if data.get(key) != Some(&value) {
             data.insert(String::from(key), value);
             self.data_changed.store(true, Ordering::Relaxed);
@@ -98,7 +98,7 @@ impl Session
         }
     }
 
-    pub fn validate(self) -> Result<Self, Error>
+    pub fn validate(self) -> Result<Self>
     {
         match self.is_expired() {
             false => Ok(self),
@@ -139,6 +139,52 @@ impl Clone for Session
         }
     }
 }
+
+// TODO: move to a Redis-based store
+#[derive(Debug, Clone)]
+pub struct Store
+{
+    inner: Arc<RwLock<HashMap<String, Session>>>,
+}
+
+impl Store
+{
+    pub fn new() -> Self
+    {
+        Store {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn load_session(&self, cookie: &str) -> Result<Session>
+    {
+        let id = Session::id_from_cookie(cookie)?;
+        let store = self.inner.read().await;
+        let session = store
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| {
+                let cookie = String::from(cookie);
+                Error::NoSessionFound { cookie }
+            })
+            .and_then(Session::validate);
+
+        session
+    }
+
+    pub async fn store_session(&self, session: Session) -> Result<Option<String>>
+    {
+        self.inner
+            .write()
+            .await
+            .insert(session.id.clone(), session.clone());
+
+        session.reset_data_changed();
+        Ok(session.into_cookie_value())
+    }
+}
+
+type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error

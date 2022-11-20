@@ -5,12 +5,11 @@ use thiserror::Error;
 
 use bluebird::{
     config::{self, Config},
-    http,
-    session::store::Store,
+    http::{self, session},
 };
 
 #[tokio::main]
-async fn main() -> Result<(), Error>
+async fn main() -> Result<()>
 {
     tracing_subscriber::fmt::init();
 
@@ -23,12 +22,14 @@ async fn main() -> Result<(), Error>
         .await?;
     sqlx::migrate!().run(&pool).await?;
 
-    let store = Store::new();
+    let session_store = session::Store::new();
 
-    bluebird::http::serve(config.port(), pool, store).await?;
+    bluebird::http::serve(config.port(), pool, session_store).await?;
 
     Ok(())
 }
+
+type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error

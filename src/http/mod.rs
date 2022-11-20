@@ -4,12 +4,12 @@ use axum::{Extension, Router};
 use sqlx::PgPool;
 use thiserror::Error;
 
-use crate::session::store::Store;
+pub mod session;
 
 mod auth;
 mod users;
 
-pub fn app(db_pool: PgPool, session_store: Store) -> Router
+pub fn app(db_pool: PgPool, session_store: session::Store) -> Router
 {
     Router::new()
         .merge(auth::router())
@@ -18,7 +18,7 @@ pub fn app(db_pool: PgPool, session_store: Store) -> Router
         .layer(Extension(session_store))
 }
 
-pub async fn serve(port: u16, db_pool: PgPool, session_store: Store) -> Result<(), Error>
+pub async fn serve(port: u16, db_pool: PgPool, session_store: session::Store) -> Result<()>
 {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
@@ -28,6 +28,8 @@ pub async fn serve(port: u16, db_pool: PgPool, session_store: Store) -> Result<(
 
     Ok(())
 }
+
+type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error

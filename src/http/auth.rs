@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use axum::{http, response, routing::get, Extension, Json, Router};
 use sqlx::PgPool;
 
@@ -7,8 +5,8 @@ use serde::Deserialize;
 use thiserror::Error;
 
 use crate::{
+    http::session::{self, Session},
     password,
-    session::{self, extractor, store::Store, Session},
 };
 
 pub fn router() -> Router
@@ -17,26 +15,25 @@ pub fn router() -> Router
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateAuthSession
 {
     username: String,
     password: String,
 }
 
-async fn fetch_auth_session(user_id: extractor::UserId) -> Result<String, Error>
+async fn fetch_auth_session(user_id: session::extractor::UserId) -> Result<String>
 {
     match user_id {
-        extractor::UserId::Found(user_id) => Ok(user_id.to_string()),
-        extractor::UserId::NotFound => Err(Error::MustBeAuthenticated),
+        session::extractor::UserId::Found(user_id) => Ok(user_id.to_string()),
+        session::extractor::UserId::NotFound => Err(Error::MustBeAuthenticated),
     }
 }
 
 async fn create_auth_session(
     db_pool: Extension<PgPool>,
-    store: Extension<Store>,
+    session_store: Extension<session::Store>,
     Json(req): Json<CreateAuthSession>,
-) -> Result<(http::HeaderMap, http::StatusCode), Error>
+) -> Result<(http::HeaderMap, http::StatusCode)>
 {
     let CreateAuthSession { username, password } = req;
 
@@ -44,7 +41,7 @@ async fn create_auth_session(
         r#"select user_id, password from users where username = $1"#,
         username
     )
-    .fetch_optional(db_pool.deref())
+    .fetch_optional(&*db_pool)
     .await?;
 
     match user {
@@ -53,12 +50,12 @@ async fn create_auth_session(
 
             if password_is_correct {
                 let mut session = Session::new();
-                session.insert("user_id", user.user_id)?;
+                session.insert("user_id", user.user_id).await?;
                 // SAFETY: This cannot fail as store_session propagates `None`
                 // upon a `None` field for the session's cookie value, which
                 // will never be empty as we create the session above and never
                 // mutate its cookie value
-                let cookie = store.store_session(session).await?.unwrap();
+                let cookie = session_store.store_session(session).await?.unwrap();
 
                 let mut headers = http::HeaderMap::new();
                 let header_value = http::HeaderValue::from_str(&format!(
@@ -82,6 +79,8 @@ async fn create_auth_session(
         None => Err(Error::UserNotFound { username }),
     }
 }
+
+type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error

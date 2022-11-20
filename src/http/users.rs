@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use axum::{http, response, routing::post, Extension, Json, Router};
 use sqlx::PgPool;
 
@@ -24,7 +22,7 @@ pub struct CreateUser
 async fn create_user(
     db_pool: Extension<PgPool>,
     Json(req): Json<CreateUser>,
-) -> Result<http::StatusCode, Error>
+) -> Result<http::StatusCode>
 {
     let CreateUser { username, password } = req;
 
@@ -38,7 +36,7 @@ async fn create_user(
         username,
         password
     )
-    .execute(db_pool.deref())
+    .execute(&*db_pool)
     .await
     .map_err(|err| match err {
         sqlx::Error::Database(db_err) if db_err.constraint() == Some("users_username_key") => {
@@ -49,6 +47,8 @@ async fn create_user(
 
     Ok(http::StatusCode::NO_CONTENT)
 }
+
+type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error

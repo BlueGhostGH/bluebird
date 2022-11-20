@@ -7,7 +7,7 @@ use axum::{
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use crate::session::{self, store::Store};
+use crate::http::session;
 
 #[derive(Debug)]
 pub enum UserId
@@ -29,7 +29,7 @@ where
     ) -> Result<Self, Self::Rejection>
     {
         let store = parts
-            .extract::<Extension<Store>>()
+            .extract::<Extension<session::Store>>()
             .await
             .map_err(|_| session::Error::MissingStoreExtension)?;
         let cookie = parts
@@ -46,7 +46,7 @@ where
             Some(session_cookie) => {
                 let session = store.load_session(session_cookie).await?;
 
-                if let Some(user_id) = session.get::<Uuid>("user_id") {
+                if let Some(user_id) = session.get::<Uuid>("user_id").await {
                     Ok(UserId::Found(user_id))
                 } else {
                     todo!()

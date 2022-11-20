@@ -14,7 +14,7 @@ pub struct Config
 
 impl Config
 {
-    pub fn init() -> Result<Self, Error>
+    pub fn init() -> Result<Self>
     {
         let database_url = match env::var("DATABASE_URL") {
             Ok(url) => url,
@@ -41,6 +41,8 @@ impl Config
         self.port
     }
 }
+
+type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error
