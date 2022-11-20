@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use sqlx::postgres::PgPoolOptions;
+
 use thiserror::Error;
 
 use bluebird::{
