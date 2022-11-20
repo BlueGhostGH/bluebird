@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sqlx::postgres::PgPoolOptions;
 
-use bluebird::config::Config;
+use bluebird::{config::Config, session::store::Store};
 
 use error::Result;
 
@@ -18,10 +18,11 @@ async fn main() -> Result<()>
         .acquire_timeout(Duration::from_secs(3))
         .connect(config.database_url())
         .await?;
-
     sqlx::migrate!().run(&pool).await?;
 
-    bluebird::http::serve(config.port(), pool).await?;
+    let store = Store::new();
+
+    bluebird::http::serve(config.port(), pool, store).await?;
 
     Ok(())
 }
