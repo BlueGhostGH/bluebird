@@ -1,17 +1,15 @@
 use std::ops::Deref;
 
-use axum::{http, routing::get, Extension, Json, Router};
+use axum::{http, response, routing::get, Extension, Json, Router};
 use sqlx::PgPool;
 
 use serde::Deserialize;
+use thiserror::Error;
 
 use crate::{
     password,
     session::{self, extractor, store::Store, Session},
 };
-
-mod error;
-pub use error::{Error, Result};
 
 pub fn router() -> Router
 {
@@ -26,7 +24,7 @@ pub struct CreateAuthSession
     password: String,
 }
 
-async fn fetch_auth_session(user_id: extractor::UserId) -> Result<String>
+async fn fetch_auth_session(user_id: extractor::UserId) -> Result<String, Error>
 {
     match user_id {
         extractor::UserId::Found(user_id) => Ok(user_id.to_string()),
@@ -38,7 +36,7 @@ async fn create_auth_session(
     db_pool: Extension<PgPool>,
     store: Extension<Store>,
     Json(req): Json<CreateAuthSession>,
-) -> Result<(http::HeaderMap, http::StatusCode)>
+) -> Result<(http::HeaderMap, http::StatusCode), Error>
 {
     let CreateAuthSession { username, password } = req;
 
@@ -78,9 +76,43 @@ async fn create_auth_session(
 
                 Ok((headers, http::StatusCode::NO_CONTENT))
             } else {
-                Err(error::Error::WrongPassword)
+                Err(Error::WrongPassword)
             }
         }
-        None => Err(error::Error::UserNotFound(username)),
+        None => Err(Error::UserNotFound { username }),
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum Error
+{
+    #[error("{0}")]
+    Sqlx(#[from] sqlx::Error),
+    #[error("{0}")]
+    Password(#[from] password::Error),
+    #[error("{0}")]
+    Session(#[from] session::Error),
+    #[error("no user with username {username} was found")]
+    UserNotFound
+    {
+        username: String
+    },
+    #[error("the provided password is wrong")]
+    WrongPassword,
+    #[error("must be authenticated")]
+    MustBeAuthenticated,
+}
+
+impl response::IntoResponse for Error
+{
+    fn into_response(self) -> response::Response
+    {
+        match self {
+            Error::UserNotFound { .. } => http::StatusCode::NOT_FOUND,
+            Error::WrongPassword => http::StatusCode::UNPROCESSABLE_ENTITY,
+            Error::MustBeAuthenticated => http::StatusCode::UNAUTHORIZED,
+            _ => http::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+        .into_response()
     }
 }

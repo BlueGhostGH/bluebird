@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_lock::RwLock;
 
-use crate::session::{Error, Result, Session};
+use crate::session::{Error, Session};
 
 // TODO: move to a Redis-based store
 #[derive(Debug, Clone)]
@@ -20,7 +20,7 @@ impl Store
         }
     }
 
-    pub async fn load_session(&self, cookie: &str) -> Result<Session>
+    pub async fn load_session(&self, cookie: &str) -> Result<Session, Error>
     {
         let id = Session::id_from_cookie(cookie)?;
         let store = self.inner.read().await;
@@ -29,14 +29,14 @@ impl Store
             .cloned()
             .ok_or_else(|| {
                 let cookie = String::from(cookie);
-                Error::NoSessionFound(cookie)
+                Error::NoSessionFound { cookie }
             })
             .and_then(Session::validate);
 
         session
     }
 
-    pub async fn store_session(&self, session: Session) -> Result<Option<String>>
+    pub async fn store_session(&self, session: Session) -> Result<Option<String>, Error>
     {
         self.inner
             .write()

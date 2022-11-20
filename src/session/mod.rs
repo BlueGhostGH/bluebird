@@ -6,12 +6,12 @@ use std::{
     },
 };
 
+use axum::{http, response};
+
 use rand::RngCore;
 use serde::Serialize;
-use time::OffsetDateTime;
-
-mod error;
-pub use error::{Error, Result};
+use thiserror::Error;
+use time::{Duration, OffsetDateTime};
 
 pub mod extractor;
 pub mod store;
@@ -56,7 +56,7 @@ impl Session
         }
     }
 
-    pub fn id_from_cookie(cookie: &str) -> Result<String>
+    pub fn id_from_cookie(cookie: &str) -> Result<String, Error>
     {
         let decoded = base64::decode(cookie)?;
         let hash = blake3::hash(&decoded);
@@ -73,7 +73,7 @@ impl Session
         serde_json::from_str(string).ok()
     }
 
-    pub fn insert<V>(&mut self, key: &str, value: V) -> Result<()>
+    pub fn insert<V>(&mut self, key: &str, value: V) -> Result<(), Error>
     where
         V: Serialize,
     {
@@ -98,17 +98,19 @@ impl Session
         }
     }
 
-    pub fn validate(self) -> Result<Self>
+    pub fn validate(self) -> Result<Self, Error>
     {
         match self.is_expired() {
             false => Ok(self),
-            true => Err(Error::SessionExpired(
+            true => {
                 // SAFETY: The only way `self.is_expired` could return true
                 // is if, above everything else, the `self.expiry` field is of
                 // the `Some `variant, therefore it is also guaranteed to be
                 // `Some` here
-                self.expiry.unwrap() - OffsetDateTime::now_utc(),
-            )),
+                let by = self.expiry.unwrap() - OffsetDateTime::now_utc();
+
+                Err(Error::SessionExpired { by })
+            }
         }
     }
 
@@ -134,6 +136,43 @@ impl Clone for Session
 
             cookie_value: None,
             data_changed: self.data_changed.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum Error
+{
+    #[error("{0}")]
+    Base64Decode(#[from] base64::DecodeError),
+    #[error("{0}")]
+    SerdeJson(#[from] serde_json::Error),
+    #[error("missing request session store extension")]
+    MissingStoreExtension,
+    #[error("session has been expired for {by}")]
+    SessionExpired
+    {
+        by: Duration
+    },
+    #[error("no session found for cookie {cookie}")]
+    NoSessionFound
+    {
+        cookie: String
+    },
+}
+
+impl response::IntoResponse for Error
+{
+    fn into_response(self) -> response::Response
+    {
+        match self {
+            Error::Base64Decode(_)
+            | Error::SerdeJson(_)
+            | Error::MissingStoreExtension
+            | Error::SessionExpired { .. } => {
+                http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+            Error::NoSessionFound { .. } => http::StatusCode::BAD_REQUEST.into_response(),
         }
     }
 }

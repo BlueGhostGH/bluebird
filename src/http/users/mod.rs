@@ -1,14 +1,12 @@
 use std::ops::Deref;
 
-use axum::{http, routing::post, Extension, Json, Router};
+use axum::{http, response, routing::post, Extension, Json, Router};
 use sqlx::PgPool;
 
 use serde::Deserialize;
+use thiserror::Error;
 
 use crate::password;
-
-mod error;
-pub use error::{Error, Result};
 
 pub fn router() -> Router
 {
@@ -26,7 +24,7 @@ pub struct CreateUser
 async fn create_user(
     db_pool: Extension<PgPool>,
     Json(req): Json<CreateUser>,
-) -> Result<http::StatusCode>
+) -> Result<http::StatusCode, Error>
 {
     let CreateUser { username, password } = req;
 
@@ -44,10 +42,33 @@ async fn create_user(
     .await
     .map_err(|err| match err {
         sqlx::Error::Database(db_err) if db_err.constraint() == Some("users_username_key") => {
-            error::Error::UsernameTaken
+            Error::UsernameTaken
         }
         err => err.into(),
     })?;
 
     Ok(http::StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Error)]
+pub enum Error
+{
+    #[error("{0}")]
+    Sqlx(#[from] sqlx::Error),
+    #[error("{0}")]
+    Password(#[from] password::Error),
+    #[error("username already taken")]
+    UsernameTaken,
+}
+
+impl response::IntoResponse for Error
+{
+    fn into_response(self) -> response::Response
+    {
+        match self {
+            Error::UsernameTaken => http::StatusCode::CONFLICT,
+            _ => http::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+        .into_response()
+    }
 }
