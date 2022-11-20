@@ -49,7 +49,7 @@ where
                 if let Some(user_id) = session.get::<Uuid>("user_id").await {
                     Ok(UserId::Found(user_id))
                 } else {
-                    todo!()
+                    Ok(UserId::NotFound)
                 }
             }
             None => Ok(UserId::NotFound),
