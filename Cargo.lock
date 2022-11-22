@@ -74,8 +74,8 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "axum"
-version = "0.6.0-rc.4"
-source = "git+https://github.com/tokio-rs/axum#c461f1d827edd45b3f1b7b2a77ad885c765feff8"
+version = "0.6.0-rc.5"
+source = "git+https://github.com/tokio-rs/axum#102d5887fa5958e8f58bf59a87f8053851673ef8"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -92,6 +92,7 @@ dependencies = [
  "mime",
  "percent-encoding",
  "pin-project-lite",
+ "rustversion",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -107,7 +108,7 @@ dependencies = [
 [[package]]
 name = "axum-core"
 version = "0.3.0-rc.3"
-source = "git+https://github.com/tokio-rs/axum#c461f1d827edd45b3f1b7b2a77ad885c765feff8"
+source = "git+https://github.com/tokio-rs/axum#102d5887fa5958e8f58bf59a87f8053851673ef8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -115,8 +116,20 @@ dependencies = [
  "http",
  "http-body",
  "mime",
+ "rustversion",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.3.0-rc.3"
+source = "git+https://github.com/tokio-rs/axum#102d5887fa5958e8f58bf59a87f8053851673ef8"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -177,6 +190,7 @@ dependencies = [
  "async-lock",
  "async-trait",
  "axum",
+ "axum-macros",
  "base64",
  "blake3",
  "hyper",
@@ -1005,6 +1019,12 @@ checksum = "0864aeff53f8c05aa08d86e5ef839d3dfcf07aeba2db32f12db0ef716e87bd55"
 dependencies = [
  "base64",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97477e48b4cf8603ad5f7aaf897467cf42ab4218a38ef76fb14c2d6773a6d6a8"
 
 [[package]]
 name = "ryu"

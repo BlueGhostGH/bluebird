@@ -6,6 +6,7 @@ use tokio::signal;
 
 use thiserror::Error;
 
+mod json;
 pub mod session;
 
 mod auth;
@@ -65,4 +66,34 @@ pub enum Error
 {
     #[error("{0}")]
     Hyper(#[from] hyper::Error),
+}
+
+mod api_error
+{
+    use std::num::NonZeroU16;
+
+    use serde::Serialize;
+
+    macro_rules! code {
+        ($name:ident, $code:expr) => {
+            pub(super) const $name: Code = Code(unsafe { NonZeroU16::new_unchecked($code) });
+        };
+    }
+
+    #[derive(Debug, Serialize)]
+    pub(super) struct Code(NonZeroU16);
+
+    // 100 - JSON Syntax Error
+    // 110 - JSON Data Error
+    // 120 - JSON Missing Content Type
+    // 199 - JSON Unknown Error
+    impl Code
+    {
+        #![allow(unsafe_code)]
+
+        code!(JSON_SYNTAX_ERROR, 100);
+        code!(JSON_DATA_ERROR, 110);
+        code!(JSON_MISSING_CONTENT_TYPE, 120);
+        code!(JSON_UNKNOWN_ERROR, 199);
+    }
 }

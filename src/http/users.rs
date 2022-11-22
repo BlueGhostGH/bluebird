@@ -1,10 +1,10 @@
-use axum::{http, response, routing::post, Extension, Json, Router};
+use axum::{http, response, routing::post, Extension, Router};
 use sqlx::PgPool;
 
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::password;
+use crate::{http::json, password};
 
 pub(in crate::http) fn router() -> Router
 {
@@ -21,7 +21,7 @@ struct CreateUser
 
 async fn create_user(
     pg_pool: Extension<PgPool>,
-    Json(req): Json<CreateUser>,
+    json::extractor::Json(req): json::extractor::Json<CreateUser>,
 ) -> Result<http::StatusCode>
 {
     let CreateUser { username, password } = req;
